@@ -1,8 +1,8 @@
 const DB = require('mongoose');
 const UserSchema = new DB.Schema({
-    _id: String,
+    _id: DB.Types.ObjectId,
     account_details: {
-        user_name: String,
+        user_name: { type: String, required: true, unique: true },
         password: String,
         role: {
             info: { type: String, default: 'client' }, // Only client or admin

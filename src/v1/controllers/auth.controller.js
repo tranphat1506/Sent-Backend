@@ -2,6 +2,7 @@ const GlobalSetting = require('../configs/globalSetting.config');
 const jwtHelper = require('../helpers/jwt.helper');
 const _ = require('underscore');
 const { UserModel } = require('../models/users.model');
+const { Types } = require('mongoose');
 const joiValidation = require('../helpers/joi.helper');
 const { sendVerifyEmail } = require('../services/mail.service');
 const { v4: uuidv4 } = require('uuid');
@@ -127,13 +128,7 @@ const signUp = async (req, res) => {
             ],
         });
         if (_.isNull(userInDB)) {
-            const id = uuidv4();
-            // send verify email link to device
-            const hashVerifyLink =
-                `${process.env.BE_URL}:${process.env.PORT}` + '/api/auth/verify/?method=email&h=' + md5(user_name + id);
-            // send
-            if (process.env.NODE_ENV === 'development') console.log(hashVerifyLink);
-            else await sendVerifyEmail(hashVerifyLink, user_name, email);
+            const id = new Types.ObjectId().toHexString();
             // save user info to data
             const newUser = new UserModel({
                 _id: id,
@@ -147,7 +142,15 @@ const signUp = async (req, res) => {
                     },
                 },
             });
-            await newUser.save();
+            const success = await newUser.save();
+            // send verify email link to device
+            const hashVerifyLink =
+                `${process.env.BE_URL}:${process.env.PORT}` +
+                '/api/auth/verify/?method=email&h=' +
+                md5(user_name + success._id);
+            // send
+            if (process.env.NODE_ENV === 'development') console.log(hashVerifyLink);
+            else await sendVerifyEmail(hashVerifyLink, user_name, email);
             //send OK status
             return res.status(200).json({
                 message: 'Đăng ký thành công!',
@@ -160,6 +163,7 @@ const signUp = async (req, res) => {
 
         // Catch error
     } catch (error) {
+        console.log(error);
         process.env.NODE_ENV != 'development'
             ? logEvents(`${error.name}: ${error.message}`, `errors`)
             : console.log(`${error.name}: ${error.message}`);

@@ -50,6 +50,7 @@ server.listen(PORT, () => {
 });
 // DB
 const connectDB = require('./src/v1/configs/database.config');
+const { fetchAllRooms } = require('./src/v1/services/socket.io/common.service');
 connectDB
     .catch((err) => {
         process.env.NODE_ENV != 'development' ? logEvents(`${err.name}: ${err.message}`, `errors`) : false;
@@ -84,5 +85,8 @@ connectDB
 //         process.env.NODE_ENV != 'development' ? logEvents(`Connect Redis SUCCESS!`, `server`) : false;
 //         console.log('Connect Redis SUCCESS!');
 //     });
-global._ROOM = {};
+global._ROOMS = {};
+fetchAllRooms().then((r) => {
+    console.log(r);
+});
 global._USERS = {};
