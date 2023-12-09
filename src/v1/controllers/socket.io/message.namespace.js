@@ -1,9 +1,13 @@
 const router = require('express').Router();
 const { verifyTokenBySocketIO } = require('../../middlewares/auth.middleware');
 const { addUser, removeUser, countUser } = require('../../services/socket.io/common.service');
+const { RoomEventBySocketIO } = require('../../controllers/room.controller');
+const { MessageEventBySocketIO } = require('../message.controller');
+
 const messageNamespace = (namespace) => {
     // Authorization
     namespace.use((socket, next) => {
+        console.log('123');
         verifyTokenBySocketIO(socket, next);
     });
     // Logic xử lý kết nối
@@ -11,6 +15,10 @@ const messageNamespace = (namespace) => {
         // Handle connect event
         addUser(socket.user, socket.id);
         console.log(countUser(), 'Online');
+
+        // Handle room event
+        RoomEventBySocketIO(socket);
+        MessageEventBySocketIO(socket);
 
         socket.on('disconnect', () => {
             // Handle disconnect event

@@ -14,9 +14,12 @@ const verifyToken = (token, secret) => {
     });
 };
 const generateToken = (schema, secret, tokenLife) => {
+    const splitSchema = {
+        _id: schema._id,
+    };
     return new Promise((resolve, reject) => {
         jwt.sign(
-            schema,
+            splitSchema,
             secret,
             {
                 expiresIn: tokenLife,
