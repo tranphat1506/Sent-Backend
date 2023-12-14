@@ -14,12 +14,17 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
 const ACCESS_TOKEN_LIFE = process.env.ACCESS_TOKEN_LIFE;
 const REFRESH_TOKEN_LIFE = process.env.REFRESH_TOKEN_LIFE;
 const bcrypt = require('bcrypt');
+const { RoomModel } = require('../models/room.model');
 const saltRounds = 8;
 const signIn = async (req, res) => {
     const { account, password, remember_pwd } = req.body;
     try {
         const userWasFound = await UserModel.findOne({
-            $or: [{ 'account_details.user_name': account }, { 'account_details.email.details': account }],
+            $or: [
+                { 'account_details.user_name': account },
+                { 'account_details.email.details': account },
+                { 'account_details.phone.details': account },
+            ],
         });
         if (_.isNull(userWasFound))
             return res.status(400).json({
@@ -102,16 +107,19 @@ const signIn = async (req, res) => {
     }
 };
 const signUp = async (req, res) => {
-    const { email, user_name, password, re_password, accept_marketing } = req.body;
+    const { email, user_name, password, display_name, accept_marketing, birth, sex } = req.body;
     //
     const errorValidation = joiValidation.signUp({
+        birth: new Date(birth.year + '-' + birth.month + '-' + birth.day).toISOString(),
+        sex: sex.info,
         email,
         user_name,
         password,
-        re_password,
+        display_name,
     });
     if (errorValidation) {
         return res.status(400).json({
+            code: 400,
             message: errorValidation.message,
             type: errorValidation.details[0].context.key,
         });
@@ -141,23 +149,50 @@ const signUp = async (req, res) => {
                         accept_marketing: accept_marketing,
                     },
                 },
+                info_details: {
+                    display_name,
+                    sex,
+                    birth,
+                },
+                room_details: {
+                    online_status_room_id: id,
+                },
             });
             const success = await newUser.save();
+            // Create status room (Friend list);
+            const statusRoom = new RoomModel({
+                room_id: id,
+                display_name: 'Friend list of user!',
+                is_group_chat: true,
+                is_friendlist_room: true,
+                owner: id,
+                members: {
+                    [id]: {
+                        user_id: id,
+                        last_active: Date.now(),
+                        is_online: false,
+                    },
+                },
+            });
+            await statusRoom.save();
+
             // send verify email link to device
             const hashVerifyLink =
                 `${process.env.BE_URL}:${process.env.PORT}` +
                 '/api/auth/verify/?method=email&h=' +
                 md5(user_name + success._id);
-            // send
             if (process.env.NODE_ENV === 'development') console.log(hashVerifyLink);
             else await sendVerifyEmail(hashVerifyLink, user_name, email);
+
             //send OK status
             return res.status(200).json({
+                code: 200,
                 message: 'Đăng ký thành công!',
             });
         }
         // if already have account
         return res.status(400).json({
+            code: 400,
             message: 'Người dùng đã tồn tại!',
         });
 

@@ -2,12 +2,15 @@ const express = require('express');
 const router = express.Router();
 const io = require('socket.io')(_SERVER);
 const messageNamespace = require('../controllers/socket.io/message.namespace');
+const mainNamespace = require('../controllers/socket.io/online.namespace');
 
 const ENDPOINTS = {
+    online: '/online',
     message: '/message',
 };
 
 const NAMESPACE_CONTROLLERS = {
+    online: mainNamespace,
     message: messageNamespace,
 };
 
