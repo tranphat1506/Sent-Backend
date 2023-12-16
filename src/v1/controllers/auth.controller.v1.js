@@ -5,7 +5,7 @@ const { UserModel } = require('../models/users.model');
 const { Types } = require('mongoose');
 const joiValidation = require('../helpers/joi.helper');
 const { sendVerifyEmail } = require('../services/mail.service');
-// const { v4: uuidv4 } = require('uuid');
+const { v4: uuidv4 } = require('uuid');
 const { logEvents } = require('../middlewares/logEvents');
 const md5 = require('md5');
 
@@ -219,7 +219,7 @@ const signOut = (req, res) => {
 };
 
 const refreshAccessToken = async (req, res) => {
-    if (!req.headers.authorization) {
+    if (!req.cookies.r_token && !req.body.r_token) {
         // no token provided
         return res.status(403).json({
             code: 403,
@@ -227,9 +227,15 @@ const refreshAccessToken = async (req, res) => {
         });
     }
     try {
-        const r_token = req.headers.authorization?.split(' ')[1];
+        const r_token = req.cookies.r_token || req.body.r_token;
         const { decoded } = await jwtHelper.verifyToken(r_token, REFRESH_TOKEN_SECRET);
         const newAccessToken = await jwtHelper.generateToken(decoded, ACCESS_TOKEN_SECRET, ACCESS_TOKEN_LIFE);
+        // res.cookie('a_token', newAccessToken.encoded, {
+        //     maxAge: 3600000, // 1 hour
+        //     sameSite: 'none',
+        //     httpOnly: false,
+        //     secure: true,
+        // });
         return res.status(200).json({
             token: newAccessToken.encoded,
         });

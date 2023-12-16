@@ -4,7 +4,7 @@ const { joinRoomById, addRoom } = require('../services/socket.io/common.service'
 
 const create = async (req, res) => {
     // get id
-    const a_token = req.cookies.a_token || req.headers.authorization.split(' ')[1];
+    const a_token = req.headers.authorization?.split(' ')[1];
     const _id = getPayload(a_token)._id;
     // Create room
     roomService
@@ -37,7 +37,7 @@ const create = async (req, res) => {
 
 const addMember = async (req, res) => {
     // get id
-    const a_token = req.cookies.a_token || req.headers.authorization.split(' ')[1];
+    const a_token = req.headers.authorization?.split(' ')[1];
     const _id = getPayload(a_token)._id;
     // Create room
     roomService
