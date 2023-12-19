@@ -33,14 +33,14 @@ const verifyToken = async (req, res, next) => {
 };
 
 const verifyTokenBySocketIO = async (socket, next) => {
-    const a_token = socket.handshake.auth.token || socket.handshake.headers.token;
+    const a_token = socket.handshake.headers.authorization?.split(' ')[1];
     if (!a_token) {
         // no token provided
         return next(new Error('Authentication error: Token missing'));
     }
     try {
         const { decoded } = await jwtHelper.verifyToken(a_token, ACCESS_TOKEN_SECRET);
-        socket.user = socket.handshake.user || decoded;
+        socket.user = decoded;
         next();
     } catch (error) {
         process.env.NODE_ENV != 'development'

@@ -98,6 +98,7 @@ const fetchOneRoom = async (roomId) => {
     return new Promise((resolve, reject) => {
         RoomModel.findOne({ room_id: new Types.ObjectId(roomId) }, { messages: 0 })
             .then(async (room) => {
+                console.log(room);
                 await addRoom(room.room_id, room);
                 return resolve(room);
             })

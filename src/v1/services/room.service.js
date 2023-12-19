@@ -188,7 +188,7 @@ const addToUserRoom = async (request_send_by, memberIds = [], room, bypass = fal
                                 });
                             const relationship = isMyFriend(
                                 id === request_send_by ||
-                                    userDetail['friend_details']['accepted_list']?.[request_send_by],
+                                    userDetail['friend_details']['accepted_list'].has(request_send_by),
                                 true,
                             );
                             if (!isAllowAddToRoom(userDetail['settings'], relationship, bypass))

@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
-const io = require('socket.io')(_SERVER);
+const { socketCorsOptions } = require('../configs/cors.config');
+const io = require('socket.io')(_SERVER, { cors: socketCorsOptions });
 const messageNamespace = require('../controllers/socket.io/message.namespace');
 const mainNamespace = require('../controllers/socket.io/online.namespace');
 

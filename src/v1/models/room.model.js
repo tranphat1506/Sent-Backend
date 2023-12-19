@@ -31,7 +31,7 @@ const RoomSchema = new DB.Schema({
     },
     message_details: {
         total_message: { type: Number, default: 0 },
-        history: { type: Map, of: MessageSchema },
+        history: { type: Map, of: MessageSchema, default: {} },
     },
     owner: { type: DB.Types.ObjectId, ref: 'Users', required: true },
     created_at: { type: String, default: new Date().toISOString() },
