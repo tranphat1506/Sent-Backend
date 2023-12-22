@@ -54,7 +54,7 @@ const addToFriendList = async (request_send_by, friend_id) => {
         return UserModel.find({ _id: { $in: ids } })
             .then(async (users) => {
                 // Nếu không tìm thấy bất kỳ user nào
-                if (!users.length === 2)
+                if (!(users.length === 2))
                     return resolve({ code: 404, message: 'Cannot found one of this ids.', name: 'Not Found' });
                 const sortedUsers = ids.map((id) =>
                     users.find((user) => {

@@ -2,7 +2,13 @@ const router = require('express').Router();
 const { verifyTokenBySocketIO } = require('../../middlewares/auth.middleware');
 const { logEvents } = require('../../middlewares/logEvents');
 const { getOnlineStatusRoom } = require('../../services/room.service');
-const { addUser, countUser, userDisconnect, joinRoomById } = require('../../services/socket.io/common.service');
+const {
+    addUser,
+    countUser,
+    userDisconnect,
+    joinRoomById,
+    getUserByUserId,
+} = require('../../services/socket.io/common.service');
 const { OnlineEventSocketIO } = require('../online.controller');
 
 const onlineNamespace = (namespace) => {
@@ -13,23 +19,15 @@ const onlineNamespace = (namespace) => {
     // Logic xử lý kết nối
     namespace.on('connection', async (socket) => {
         try {
-            // Add and join their room when they connect
-            await addUser(socket.user, socket.id);
-            // Only join socket room not other room
-            console.log(
-                socket.user._id,
-                'was join',
-                (await joinOnlineStatusRoom(socket, socket.user._id)).length,
-                'rooms',
-            );
-            // Join other room
+            // Handle connect event
+            await connectEvent(socket);
 
             OnlineEventSocketIO(socket);
 
             socket.on('disconnect', async () => {
                 // Handle disconnect event
-                userDisconnect(socket.user._id);
-                console.log('Online', await countUser());
+
+                await disconnectEvent(socket);
             });
         } catch (error) {
             // Lỗi server
@@ -55,6 +53,24 @@ const joinOnlineStatusRoom = async (socket, roomId) => {
     } catch (error) {
         return error;
     }
+};
+
+const connectEvent = async (socket) => {
+    // Join status room
+    console.log(socket.user._id, 'was join', (await joinOnlineStatusRoom(socket, socket.user._id)).length, 'rooms');
+    // Add and join their room when they connect
+    const socketUser = await addUser(socket.user._id, socket.id);
+    socket.to(socket.user._id).emit('update-online-status__Response', await getUserByUserId(String(socket.user._id)));
+    const friendStatusList = [];
+    socketUser?.friend_details?.accepted_list.forEach((friend) => {
+        friendStatusList.push(getUserByUserId(String(friend.user_id)));
+    });
+    socket.emit('my-list-friend__Response', await Promise.all(friendStatusList));
+};
+
+const disconnectEvent = async (socket) => {
+    // Handle disconnect event
+    socket.to(socket.user._id).emit('update-online-status__Response', await userDisconnect(socket.user._id));
 };
 
 module.exports = onlineNamespace;

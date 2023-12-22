@@ -36,16 +36,16 @@ const getRoomInRedis = async (roomId, autoAdd = false) => {
     });
 };
 
-const addUser = async (userInfo, socketId) => {
+const addUser = async (userId, socketId) => {
     try {
-        const userId = userInfo?._id || undefined;
         if (!userId) return false;
+        const user = await UserModel.findOne({ _id: userId });
+        if (!user) return false;
         // const user = await UserModel.findOne({ _id: userId }).select('-account_details.password -_id');
         // if (!user) return false;
         // _USERS[userId] = { user_id: userId, socket_id: socketId, ...user.toObject() };
-        _USERS[userId] = { user_id: userId, socket_id: socketId };
-        await userActive(userId);
-        return true;
+        _USERS[userId] = { _id: userId, socket_id: socketId, is_online: true, last_active: Date.now() };
+        return user;
     } catch (error) {
         return error;
     }
@@ -57,7 +57,12 @@ const removeUser = (userId) => {
 };
 
 const getUserByUserId = async (userId) => {
-    return _USERS[userId];
+    try {
+        if (!userId) throw new Error('Invalid id.');
+        const getUser = await _USERS[userId];
+        if (!getUser) return { _id: userId, socket_id: null, is_online: false, last_active: null };
+        return getUser;
+    } catch (error) {}
 };
 
 const countUser = async () => {
@@ -71,7 +76,7 @@ const countRoom = async () => {
 const addRoom = async (roomId, roomDetail) => {
     return new Promise(async (resolve, reject) => {
         if (!roomId) return reject({ status: false, message: 'Missing room id!' });
-        _ROOMS[String(roomId)] = { ...roomDetail.toObject(), room_id: String(roomId), messages: [] };
+        _ROOMS[String(roomId)] = { ...roomDetail, room_id: String(roomId), messages: [] };
         return resolve({ status: true, message: 'OK', payload: roomDetail });
     });
 };
@@ -79,11 +84,28 @@ const addRoom = async (roomId, roomDetail) => {
 const fetchAllRooms = async () => {
     return new Promise((resolve, reject) => {
         RoomModel.find({}, { messages: 0 })
+            .populate({
+                path: 'members.$*.user_id',
+                model: 'Users',
+                select: '-account_details.password',
+                localField: 'user_id',
+                foreignField: '_id',
+            })
             .then((rooms) => {
                 return resolve(
                     Promise.all(
                         rooms.map((room) => {
-                            return addRoom(room.room_id, room);
+                            const membersFlat = new Map();
+                            room.members.forEach((member, key) => {
+                                membersFlat.set(key, {
+                                    ...member.toObject(),
+                                    username: member.user_id.account_details.user_name,
+                                    display_name: member.user_id.info_details.display_name,
+                                    avt_src: member.user_id.info_details.avatar_url,
+                                    user_id: key, // important
+                                });
+                            });
+                            return addRoom(room.room_id, { ...room.toObject(), members: membersFlat });
                         }),
                     ),
                 );
@@ -98,8 +120,17 @@ const fetchOneRoom = async (roomId) => {
     return new Promise((resolve, reject) => {
         RoomModel.findOne({ room_id: new Types.ObjectId(roomId) }, { messages: 0 })
             .then(async (room) => {
-                console.log(room);
-                await addRoom(room.room_id, room);
+                const membersFlat = new Map();
+                room.members.forEach((member, key) => {
+                    membersFlat.set(key, {
+                        ...member.toObject(),
+                        username: member.user_id.account_details.user_name,
+                        display_name: member.user_id.info_details.display_name,
+                        avt_src: member.user_id.info_details.avatar_url,
+                        user_id: key, // important
+                    });
+                });
+                await addRoom(room.room_id, { ...room.toObject(), members: membersFlat });
                 return resolve(room);
             })
             .catch((error) => {
@@ -109,14 +140,14 @@ const fetchOneRoom = async (roomId) => {
 };
 
 const userDisconnect = async (userId) => {
-    if (!_USERS[userId]) return false;
-    _USERS[userId] = { ..._USERS[userId], is_online: false };
-    return true;
-};
-
-const userActive = async (userId) => {
-    _USERS[userId] = { ..._USERS[userId], is_online: true, last_active: Date.now() };
-    return true;
+    try {
+        const user = await _USERS[userId];
+        if (!user) return false;
+        _USERS[userId] = { ...user, is_online: false };
+        return { ...user, is_online: false };
+    } catch (error) {
+        return error;
+    }
 };
 
 module.exports = {
@@ -125,7 +156,6 @@ module.exports = {
     removeUser,
     countUser,
     getUserByUserId,
-    userActive,
     userDisconnect,
     joinRoomById,
     getRoomInRedis,
