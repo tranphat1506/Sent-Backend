@@ -10,8 +10,8 @@ const express = require('express');
 const app = express();
 const http = require('http');
 const server = http.createServer(app);
-const connectDB = require('./src/v1/configs/database.config');
-const { fetchAllRooms, countUser, countRoom } = require('./src/v1/services/socket.io/common.service');
+const connectDB = require('./src/v3/configs/database.config');
+const { fetchAllRooms, countUser, countRoom } = require('./src/v3/services/socket.io/common.service');
 const { createClient } = require('redis');
 
 // Global var
@@ -34,7 +34,7 @@ app.use(helmet());
 
 // CORS
 const cors = require('cors');
-const { normalCorsOptions } = require('./src/v1/configs/cors.config');
+const { normalCorsOptions } = require('./src/v3/configs/cors.config');
 app.use(cors(normalCorsOptions));
 
 // Default headers
@@ -44,13 +44,13 @@ app.use((req, res, next) => {
 });
 
 // LOGGER
-const { reqHandle, errorHandle, logEvents } = require('./src/v1/middlewares/logEvents');
+const { reqHandle, errorHandle, logEvents } = require('./src/v3/middlewares/logEvents');
 
 app.use(reqHandle);
 app.use(errorHandle);
 
 // Routes
-const Router = require('./src/v1/routers/routers');
+const Router = require('./src/v3/routers/routers');
 app.use(Router);
 
 // Run Server

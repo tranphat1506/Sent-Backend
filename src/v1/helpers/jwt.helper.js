@@ -13,13 +13,14 @@ const verifyToken = (token, secret) => {
         });
     });
 };
-const generateToken = (schema, secret, tokenLife) => {
-    const splitSchema = {
-        _id: schema._id,
+const generateToken = (user, secret, tokenLife) => {
+    // schema
+    const schema = {
+        _id: user._id,
     };
     return new Promise((resolve, reject) => {
         jwt.sign(
-            splitSchema,
+            schema,
             secret,
             {
                 expiresIn: tokenLife,

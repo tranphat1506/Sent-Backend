@@ -19,7 +19,6 @@ const Message = {
 const Label = {
     fname: 'Tên',
     lname: 'Họ và tên đệm',
-    display_name: 'Tên hiển thị',
     user_name: 'Tên tài khoản',
     password: 'Mật khẩu',
     re_password: 'Mật khẩu nhập lại',
@@ -31,14 +30,6 @@ const Label = {
     method: 'Phương thức xác thực',
 };
 const signUpRule = Joi.object({
-    display_name: Joi.string()
-        .min(8)
-        .required()
-        .messages({
-            'string.empty': Label.display_name + Message.space + Message.empty,
-            'any.required': Label.display_name + Message.space + Message.required,
-            'string.min': Label.display_name + Message.space + Message.min,
-        }),
     user_name: Joi.string()
         .min(6)
         .max(32)
@@ -47,7 +38,8 @@ const signUpRule = Joi.object({
             'string.min': Label.user_name + Message.space + Message.min,
             'string.empty': Label.user_name + Message.space + Message.empty,
             'string.max': Label.user_name + Message.space + Message.max,
-            'string.pattern.base': Label.user_name + Message.space + Message.pattern,
+            'string.pattern.base':
+                Label.user_name + Message.space + Message.pattern,
         }),
     password: Joi.string()
         .min(8)
@@ -57,45 +49,26 @@ const signUpRule = Joi.object({
             'any.required': Label.password + Message.space + Message.required,
             'string.min': Label.password + Message.space + Message.min,
             'string.empty': Label.password + Message.space + Message.empty,
-            'string.pattern.base': Label.password + Message.space + Message.pattern,
+            'string.pattern.base':
+                Label.password + Message.space + Message.pattern,
         }),
-    birth: Joi.date()
-        .max(maxAge)
-        .min(minAge)
-        .iso()
+    re_password: Joi.string()
+        .equal(Joi.ref('password'))
         .required()
         .messages({
-            'date.empty': Label.birth + Message.space + Message.empty,
-            'any.required': Label.birth + Message.space + Message.required,
-            'date.max': Label.birth + Message.space + 'phải tối thiểu là 11 tuổi!',
-            'date.min': Label.birth + Message.space + Message.pattern,
+            'any.required':
+                Label.re_password + Message.space + Message.required,
+            'string.empty': Label.re_password + Message.space + Message.empty,
+            'any.only': Label.re_password + Message.space + Message.equal,
         }),
-    sex: Joi.number()
-        .required()
-        .min(0)
-        .max(2)
-        .messages({
-            'number.empty': Label.sex + Message.space + Message.empty,
-            'any.required': Label.sex + Message.space + Message.required,
-            'number.min': Label.sex + Message.space + Message.pattern,
-            'number.max': Label.sex + Message.space + Message.pattern,
-        }),
-    // re_password: Joi.string()
-    //     .equal(Joi.ref('password'))
-    //     .required()
-    //     .messages({
-    //         'any.required':
-    //             Label.re_password + Message.space + Message.required,
-    //         'string.empty': Label.re_password + Message.space + Message.empty,
-    //         'any.only': Label.re_password + Message.space + Message.equal,
-    //     }),
     email: Joi.string()
         .pattern(Regex.email)
         .required()
         .messages({
             'any.required': Label.email + Message.space + Message.required,
             'string.empty': Label.email + Message.space + Message.empty,
-            'string.pattern.base': Label.email + Message.space + Message.pattern,
+            'string.pattern.base':
+                Label.email + Message.space + Message.pattern,
         }),
 });
 module.exports = {

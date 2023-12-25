@@ -6,6 +6,8 @@ const connectDB = () => {
     DB.set('strictQuery', true);
     return DB.connect(DB_CONNECT_STRING, {
         dbName: DB_NAME,
+        useNewUrlParser: true,
+        useUnifiedTopology: true,
     });
 };
-module.exports = connectDB;
+module.exports = connectDB();
