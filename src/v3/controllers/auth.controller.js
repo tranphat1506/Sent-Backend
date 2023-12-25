@@ -159,6 +159,7 @@ const signUp = async (req, res) => {
                 },
                 room_details: {
                     online_status_room_id: id,
+                    notification_room_id: id,
                 },
             });
             const success = await newUser.save();

@@ -59,6 +59,11 @@ const UserSchema = new DB.Schema({
             ref: 'Rooms',
             required: true,
         },
+        notification_room_id: {
+            type: DB.Types.ObjectId,
+            ref: 'NotificationRooms',
+            required: true,
+        },
         message_room: {
             accepted_list: { type: Map, of: RoomRequestSchema, default: {} },
             waiting_accept_list: { type: Map, of: RoomRequestSchema, default: {} },
