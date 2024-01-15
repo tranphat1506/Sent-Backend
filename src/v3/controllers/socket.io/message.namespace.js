@@ -29,11 +29,15 @@ const messageNamespace = (namespace) => {
 };
 
 const connectEvent = async (socket) => {
-    const response = await joinMessageRooms(socket, socket.user._id);
-    // join exist user room
-    console.log(socket.user._id, 'was join', (await response.joinPromises).length, 'message rooms');
-    // sent rooms state for user
-    const roomList = [];
+    try {
+        const response = await joinMessageRooms(socket, socket.user._id);
+        // join exist user room
+        console.log(socket.user._id, 'was join', (await response.joinPromises).length, 'message rooms');
+        // sent rooms state for user
+        const roomList = [];
+    } catch (error) {
+        console.log(error);
+    }
 };
 
 module.exports = messageNamespace;

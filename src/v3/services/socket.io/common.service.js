@@ -1,6 +1,7 @@
-const { RoomModel } = require('../../models/room.model');
+const { RoomModel } = require('../../models/Messages/room.model');
 const { Types } = require('mongoose');
-const { UserModel } = require('../../models/users.model');
+const { UserModel } = require('../../models/User/users.model');
+const { SERVER_STATUS } = require('../../constants/status.code');
 const joinRoomById = async (roomId, socket, autoAdd = false) => {
     return new Promise(async (resolve, reject) => {
         getRoomInRedis(roomId, autoAdd)
@@ -83,35 +84,18 @@ const addRoom = async (roomId, roomDetail) => {
 
 const fetchAllRooms = async () => {
     return new Promise((resolve, reject) => {
-        RoomModel.find({}, { messages: 0 })
-            .populate({
-                path: 'members.$*.user_id',
-                model: 'Users',
-                select: '-account_details.password',
-                localField: 'user_id',
-                foreignField: '_id',
-            })
+        RoomModel.find()
             .then((rooms) => {
                 return resolve(
                     Promise.all(
                         rooms.map((room) => {
-                            const membersFlat = new Map();
-                            room.members.forEach((member, key) => {
-                                membersFlat.set(key, {
-                                    ...member.toObject(),
-                                    username: member.user_id.account_details.user_name,
-                                    display_name: member.user_id.info_details.display_name,
-                                    avt_src: member.user_id.info_details.avatar_url,
-                                    user_id: key, // important
-                                });
-                            });
-                            return addRoom(room.room_id, { ...room.toObject(), members: membersFlat });
+                            return addRoom(room.room_id, { ...room.toObject() });
                         }),
                     ),
                 );
             })
             .catch((error) => {
-                return reject({ status: false, message: '500:SERVER IS BUSY.', payload: error });
+                return reject({ ...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error });
             });
     });
 };
@@ -134,7 +118,7 @@ const fetchOneRoom = async (roomId) => {
                 return resolve(room);
             })
             .catch((error) => {
-                return reject({ status: false, message: '500:SERVER IS BUSY.', payload: error });
+                return reject({ ...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error });
             });
     });
 };

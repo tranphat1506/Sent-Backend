@@ -1,86 +1,56 @@
-const { RoomModel } = require('../models/room.model');
-const { UserModel } = require('../models/users.model');
-
+const { UserModel } = require('../models/User/users.model');
+const { RoomModel } = require('../models/Messages/room.model');
+const {SERVER_STATUS, ROOM_ACTION_STATUS} = require('../constants/status.code');
 const { Types, isObjectIdOrHexString } = require('mongoose');
 const { logEvents } = require('../middlewares/logEvents');
 const { isMyFriend, isAllowAddToRoom, isNeedToAcceptToJoinRoom } = require('./setting.service');
+const { MessageRoomMemberModel } = require('../models/Messages/member.model');
+const { UserSettingModel } = require('../models/User/users.setting.model');
+const { FriendModel } = require('../models/friends.model');
 
 const createRoom = async ({ ownerId, displayName, isGroupChat = false, memberIds = [], byPass = false }) => {
     try {
+        if (!ownerId || !displayName)
+            return ROOM_ACTION_STATUS.ROOM_COMMON__INVALID_PARAMS
         const roomId = new Types.ObjectId().toHexString();
-        if (!ownerId || !displayName || !memberIds.length)
-            return {
-                isCreateSuccess: false,
-                message: 'Invalid params!',
-                httpCode: 400,
-            };
         const newRoom = new RoomModel({
             room_id: roomId,
             is_group_chat: isGroupChat || memberIds.length > 1,
-            owner: new Types.ObjectId(ownerId),
+            created_by: new Types.ObjectId(ownerId),
             display_name: displayName,
-            members: {},
         });
+        // Add owner to member list (not save yet);
         memberIds.push(ownerId);
-        const status = await addToUserRoom(ownerId, memberIds, newRoom, byPass);
+        const status = await inviteUsersToMessageRoom(ownerId, memberIds, newRoom, byPass);
         const room = await newRoom.save();
         return {
-            isCreateSuccess: true,
-            message: `Create room success at ${room.created_at}!`,
+            ...ROOM_ACTION_STATUS.CREATE_ROOM__CREATE_SUCCESS,
             payload: { room, user_status: status },
-            httpCode: 200,
         };
     } catch (error) {
-        process.env.NODE_ENV != 'development'
-            ? logEvents(`${error.name}: ${error.message}`, `errors`)
-            : console.log(`${error.name}: ${error.message}`);
-        return {
-            isCreateSuccess: false,
-            message: '500::Fail to create room.',
-            payload: error,
-            httpCode: 500,
-        };
+        return {...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error}
     }
 };
 
-const joinRoomByRoomId = async ({ requestSendBy, roomId, memberIds = [], byPass = false }) => {
+const sentInviteJoinRoomByRoomId = async ({ requestSendBy, roomId, memberIds = [], byPass = false }) => {
     try {
         if (!roomId || !memberIds.length || !isObjectIdOrHexString(roomId))
-            return {
-                httpCode: 400,
-                message: 'Invalid params!',
-            };
+            return ROOM_ACTION_STATUS.ROOM_COMMON__INVALID_PARAMS
         const existRoom = await RoomModel.findOne({ room_id: roomId });
         // Không tìm thấy id phòng
         if (existRoom === null)
-            return {
-                message: `Room ${roomId} not exist.`,
-                httpCode: 400,
-            };
+            return ROOM_ACTION_STATUS.GET_ROOM__FAILED;
         //Không thể thêm vào phòng nếu không phải là group chat
         if (!existRoom.is_group_chat)
-            return {
-                message: `Room ${roomId} is a 1-1 room! You cannot add more than one people.`,
-                httpCode: 400,
-            };
-
-        const status = await addToUserRoom(requestSendBy, memberIds, existRoom, byPass);
+            return ROOM_ACTION_STATUS.ADD_TO_ROOM__CANNOT_ADD_TO_ONE_ONE_ROOM;
+        const status = await inviteUsersToMessageRoom(requestSendBy, memberIds, existRoom, byPass);
         const room = await existRoom.save();
         return {
-            message: `Success add member to room:${roomId}.`,
+            ...ROOM_ACTION_STATUS.CREATE_ROOM__CREATE_SUCCESS,
             payload: { room, user_status: status },
-            httpCode: 200,
         };
     } catch (error) {
-        // Lỗi server
-        process.env.NODE_ENV != 'development'
-            ? logEvents(`${error.name}: ${error.message}`, `errors`)
-            : console.log(`${error.name}: ${error.message}`);
-        return {
-            message: `500::Fail to add members to room: ${roomId}.`,
-            payload: error,
-            httpCode: 500,
-        };
+        return {...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error}
     }
 };
 
@@ -126,178 +96,144 @@ const getOnlineStatusRoom = async (userId) => {
         return resolve(room);
     });
 };
-
-const getUserRooms = (userId) => {
+/**
+ * Get all messages rooms by user id
+ * @param {string} userId 
+ * @returns 
+ */
+const getUserJoinedRooms = (userId) => {
     return new Promise((resolve, reject) => {
         if (!userId || !isObjectIdOrHexString(userId))
-            return reject({
-                httpCode: 400,
-                message: 'Invalid params!',
-            });
-        UserModel.aggregate([
+            return resolve(ROOM_ACTION_STATUS.ROOM_COMMON__INVALID_PARAMS);
+        MessageRoomMemberModel.aggregate([
             {
                 $match: {
-                    _id: new Types.ObjectId(userId),
+                    user_id: new Types.ObjectId(userId),
+                    status: 'Accepted'
                 },
             },
             {
-                $project: {
-                    _id: 1,
-                    messagesRooms: '$room_details.message_room.accepted_list',
-                },
+                $lookup: {
+                    from: 'messagerooms',
+                    localField: 'room_id',
+                    foreignField: 'room_id',
+                    as: 'room_detail'
+                }
             },
+            {
+                $unwind: '$room_detail'
+            }
         ])
-            .then((payload) => {
-                if (payload.length !== 1)
-                    return reject({
-                        httpCode: 400,
-                        message: `Invalid user id::${user_id}`,
-                    });
+            .then((rooms) => {
                 return resolve({
                     message: `Success get rooms of userId::${userId}`,
-                    payload: payload[0],
+                    payload: rooms,
                     httpCode: 200,
                 });
             })
             .catch((error) => {
-                // Lỗi server
-                process.env.NODE_ENV != 'development'
-                    ? logEvents(`${error.name}: ${error.message}`, `errors`)
-                    : console.log(`${error.name}: ${error.message}`);
-                return reject({
-                    message: `500::Fail to add members to room: ${roomId}.`,
-                    payload: error,
-                    httpCode: 500,
-                });
+                return reject({...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error})
             });
     });
 };
 
-const addToUserRoom = async (request_send_by, memberIds = [], room, bypass = false) => {
+const inviteUsersToMessageRoom = async (request_send_by, memberIds = [], room, bypass = false) => {
     return new Promise((resolve, reject) => {
-        if (!memberIds || !memberIds.length || !room) return resolve([]);
+        if (!memberIds || !memberIds.length || !room) return resolve({...ROOM_ACTION_STATUS.ROOM_COMMON__INVALID_PARAMS, payload: []});
         if (!request_send_by && !bypass)
-            return reject({
-                code: 400,
-                message: 'Request id is invalid!',
-                name: 'Type Error',
-            });
+            return resolve({...ROOM_ACTION_STATUS.ROOM_COMMON__INVALID_PARAMS, payload: []})
         const objectIds = memberIds.map((id) => new Types.ObjectId(id));
-        return UserModel.find({ _id: { $in: objectIds } })
+        return UserSettingModel.find({ user_id: { $in: objectIds } })
             .then(async (users) => {
                 // Nếu không tìm thấy bất kỳ user nào
                 if (!users?.length)
                     return resolve(
                         memberIds.map((id) => {
-                            return {
-                                id,
-                                code: 'USER_NOT_FOUND',
-                                message: 'Cannot found this user.',
-                                name: 'Not Found',
-                            };
+                            return {...ROOM_ACTION_STATUS.ADD_TO_ROOM__USER_NOT_FOUND, user_id: id};
                         }),
                     );
+                // Get friend list of request user
+                const friendList = await FriendModel.find({
+                    user_id: new Types.ObjectId(request_send_by),
+                    friend_id: {$in: objectIds},
+                    status: 'Accepted'
+                })
+                // Get exists member in room
+                const memberList = await MessageRoomMemberModel.find({
+                    user_id: {$in: objectIds},
+                    room_id: new Types.ObjectId(room.room_id),
+                })
+                // Create a user object for an exist user
                 const usersMap = {};
                 users.forEach((user) => {
-                    usersMap[user._id.toString()] = user;
+                    usersMap[user.user_id.toString()] = user;
+                    // Append the friend status
+                    usersMap[user.user_id.toString()].is_friend = friendList.includes({friend_id: user.user_id});
+                    const memberInList = memberList.find(member=>member.user_id === user.user_id);
+                    if (memberInList){
+                        usersMap[user.user_id.toString()].response_invite = memberInList.status;
+                    }
                 });
                 const result = await Promise.all(
-                    memberIds.map((id) => {
+                    memberIds.map((memberId) => {
                         return new Promise(async (resolve, reject) => {
-                            const userDetail = usersMap[id];
-                            if (!userDetail)
-                                return resolve({
-                                    id,
-                                    code: 'USER_NOT_FOUND',
-                                    message: 'Cannot found this user.',
-                                    name: 'Not Found',
-                                });
+                            const isSelf = String(request_send_by) === String(memberId);
+                            const userSetting = usersMap[memberId];
+                            if (!userSetting)
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__USER_NOT_FOUND, user_id: memberId});
+                            // If user already in group
+                            if (userSetting.response_invite === 'Accepted'){
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__USER_ALREADY_JOIN, user_id: memberId})
+                            }
+                            // If already sent request for this user
+                            if (userSetting.response_invite === 'Pending'){
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__ALREADY_INVITE, user_id: memberId})
+                            }
                             const relationship = isMyFriend(
-                                id === request_send_by ||
-                                    userDetail['friend_details']['accepted_list'].has(request_send_by),
+                                isSelf ||
+                                    userSetting.is_friend,
                                 true,
                             );
-                            if (!isAllowAddToRoom(userDetail['settings'], relationship, bypass))
-                                return resolve({
-                                    id,
-                                    code: 'USER_PREVENT',
-                                    message: `This user prevent ${relationship} add to room`,
-                                    name: 'No Permission',
-                                });
-                            // Set to user room
-                            // Not need to push in a not_accept_room
-                            if (!isNeedToAcceptToJoinRoom(userDetail['settings'], relationship, bypass)) {
-                                userDetail.room_details.message_room['accepted_list'].set(String(room.room_id), {
-                                    user_id: new Types.ObjectId(request_send_by),
-                                    room_id: room.room_id,
-                                    response_time: String(Date.now()),
-                                });
-                                // Get online state on Redis
-                                const isOnline = (await _USERS[id]?.is_online) || false;
-                                const lastActive = (await _USERS[id]?.last_active) || undefined;
-                                // Set to room members list
-                                room.members.set(id, {
-                                    user_id: id,
-                                    last_active: lastActive,
-                                    is_online: isOnline,
-                                });
-                                // Save
-                                // save user
-                                return userDetail
-                                    .save()
-                                    .then(() => {
-                                        return resolve({
-                                            id,
-                                            code: 'USER_SUCCESS_JOIN_ROOM',
-                                            message: `User has join room.`,
-                                            name: 'Success Join',
-                                        });
-                                    })
-                                    .catch((error) => {
-                                        return reject(error);
-                                    });
+                            // Check if user allow you to add to the room
+                            if (!isAllowAddToRoom(userSetting, relationship, bypass))
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__USER_NOT_ALLOW, user_id: memberId});
+                            // Set user to member room
+                            const newMember = new MessageRoomMemberModel({
+                                user_id: new Types.ObjectId(memberId),
+                                room_id: new Types.ObjectId(room.room_id),
+                                level: isSelf ? 9999 : 0,
+                                request_by: new Types.ObjectId(request_send_by),
+                                request_time: Date.now(),
+                            })
+                            // Check if user not need to accept to join room.
+                            if (!isNeedToAcceptToJoinRoom(userSetting, relationship, bypass)) {
+                                newMember.status = 'Accepted'; // Accept now
+                                // Save and response success sent invite to this user
+                                await newMember.save();
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__SUCCESS_JOIN_ROOM, user_id: memberId});
                             } else {
-                                userDetail.room_details.message_room['waiting_accept_list'].set(String(room.room_id), {
-                                    user_id: new Types.ObjectId(request_send_by),
-                                    room_id: room.room_id,
-                                });
-                                // Save
-                                // save user
-                                return userDetail
-                                    .save()
-                                    .then(() => {
-                                        return resolve({
-                                            id,
-                                            code: 'USER_NEED_TO_ACCEPT',
-                                            message: `Room request was send to user.`,
-                                            name: 'Request Sent',
-                                        });
-                                    })
-                                    .catch((error) => {
-                                        return reject(error);
-                                    });
+                                newMember.status = 'Pending'
+                                // Save and response success sent invite to this user
+                                await newMember.save();
+                                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__SUCCESS_SENT_INVITE, user_id: memberId});
                             }
+                            
                         });
                     }),
                 );
-                // await room.save();
-                return resolve({
-                    code: 200,
-                    message: 'Success.',
-                    name: 'Add user to room',
-                    payload: result,
-                });
+                return resolve({...ROOM_ACTION_STATUS.ADD_TO_ROOM__INVITE_USERS, payload: result});
             })
             .catch((error) => {
-                return reject(error);
+                return reject({...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error});
             });
     });
 };
 
 module.exports = {
     createRoom,
-    joinRoomByRoomId,
+    sentInviteJoinRoomByRoomId,
     checkPermissionToAction,
     getOnlineStatusRoom,
-    getUserRooms,
+    getUserJoinedRooms,
+    inviteUsersToMessageRoom
 };

@@ -1,7 +1,11 @@
 const GlobalSetting = require('../configs/globalSetting.config');
 const jwtHelper = require('../helpers/jwt.helper');
 const _ = require('underscore');
-const { UserModel } = require('../models/users.model');
+const { UserModel } = require('../models/User/users.model');
+const { RoomModel } = require('../models/Messages/room.model');
+const { MessageRoomMemberModel } = require('../models/Messages/member.model');
+
+
 const { Types } = require('mongoose');
 const joiValidation = require('../helpers/joi.helper');
 const { sendVerifyEmail } = require('../services/mail.service');
@@ -14,7 +18,8 @@ const REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET;
 const ACCESS_TOKEN_LIFE = process.env.ACCESS_TOKEN_LIFE;
 const REFRESH_TOKEN_LIFE = process.env.REFRESH_TOKEN_LIFE;
 const bcrypt = require('bcrypt');
-const { RoomModel } = require('../models/room.model');
+const { createRoom } = require('../services/room.service');
+const { UserSettingModel } = require('../models/User/users.setting.model');
 const saltRounds = 8;
 const signIn = async (req, res) => {
     const { account, password, remember_pwd } = req.body;
@@ -68,18 +73,6 @@ const signIn = async (req, res) => {
         ]).then(async (arrayToken) => {
             // neu client muon luu tai khoan
             if (remember_pwd) {
-                // res.cookie('a_token', arrayToken[0].encoded, {
-                //     maxAge: 3600000, // 1 hour
-                //     sameSite: 'none',
-                //     httpOnly: true,
-                //     secure: true,
-                // });
-                // res.cookie('r_token', arrayToken[1].encoded, {
-                //     maxAge: 2678400000, // 31 days
-                //     sameSite: 'none',
-                //     httpOnly: false,
-                //     secure: true,
-                // });
                 return res.status(200).json({
                     code: 200,
                     user: cutSomePrivateInfoFromUser,
@@ -87,12 +80,6 @@ const signIn = async (req, res) => {
                     r_token: arrayToken[1].encoded,
                 });
             }
-            // res.cookie('a_token', arrayToken[0].encoded, {
-            //     sameSite: 'none',
-            //     httpOnly: true,
-            //     secure: true,
-            //     path: '/',
-            // });
             return res.status(200).json({
                 code: 200,
                 user: cutSomePrivateInfoFromUser,
@@ -122,7 +109,7 @@ const signUp = async (req, res) => {
     });
     if (errorValidation) {
         return res.status(400).json({
-            code: 400,
+            httpCode: 400,
             message: errorValidation.message,
             type: errorValidation.details[0].context.key,
         });
@@ -157,29 +144,8 @@ const signUp = async (req, res) => {
                     sex,
                     birth,
                 },
-                room_details: {
-                    online_status_room_id: id,
-                    notification_room_id: id,
-                },
             });
             const success = await newUser.save();
-            // Create status room (Friend list);
-            const statusRoom = new RoomModel({
-                room_id: id,
-                display_name: 'Friend list of user!',
-                is_group_chat: true,
-                is_friendlist_room: true,
-                owner: id,
-                members: {
-                    [id]: {
-                        user_id: id,
-                        last_active: Date.now(),
-                        is_online: false,
-                    },
-                },
-            });
-            await statusRoom.save();
-
             // send verify email link to device
             const hashVerifyLink =
                 `${process.env.BE_URL}:${process.env.PORT}` +
@@ -190,13 +156,13 @@ const signUp = async (req, res) => {
 
             //send OK status
             return res.status(200).json({
-                code: 200,
+                httpCode: 200,
                 message: 'Đăng ký thành công!',
             });
         }
         // if already have account
         return res.status(400).json({
-            code: 400,
+            httpCode: 400,
             message: 'Người dùng đã tồn tại!',
         });
 
@@ -267,9 +233,20 @@ const verify = async (req, res) => {
         userInDB.account_details.email.verify_code = false;
         // change status
         userInDB.account_details.email.is_verify = true;
+        // Create setting and save user
+        await new UserSettingModel({
+            user_id: userInDB._id
+        }).save()
+        // Create & save self room ()
+        const selfRoomResponse = await createRoom({
+            ownerId: userInDB._id,
+            displayName: `Self room of ${userInDB._id}`,
+            isGroupChat: false,
+        })
+        // Save
         await userInDB.save();
         return res.status(200).json({
-            code: 200,
+            httpCode: 200,
             message: 'Verify email success.',
         });
     } catch (error) {
@@ -277,7 +254,7 @@ const verify = async (req, res) => {
             ? logEvents(`${error.name}: ${error.message}`, `errors`)
             : console.log(`${error.name}: ${error.message}`);
         return res.status(500).json({
-            code: 500,
+            httpCode: 500,
             message: 'Hệ thống đang bận!',
         });
     }

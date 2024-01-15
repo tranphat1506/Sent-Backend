@@ -31,7 +31,7 @@ const SendMessageEvent = (socket) => {
                     ? logEvents(`${error.name}: ${error.message}`, `errors`)
                     : console.log(`${error.name}: ${error.message}`);
                 socket.emit('message__Response', {
-                    code: httpCode,
+                    httpCode,
                     payload,
                     message,
                 });

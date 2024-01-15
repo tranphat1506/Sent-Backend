@@ -18,8 +18,8 @@ const OnlineEventSocketIO = (socket) => {
             .catch((error) => {
                 // Lỗi server
                 process.env.NODE_ENV != 'development'
-                    ? logEvents(`${error.name}: ${error.message}`, `errors`)
-                    : console.log(error);
+                ? logEvents(`${error.name}: ${error.message}\n${error.payload.name}: ${error.payload.message}`, `errors`)
+                : console.log(error);
             });
     });
     FriendEventSocketIO(socket);

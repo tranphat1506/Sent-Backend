@@ -8,6 +8,10 @@ const create = async (req, res) => {
     // get id
     const a_token = req.headers.authorization?.split(' ')[1];
     const _id = getPayload(a_token)._id;
+
+    // get query
+    // const members
+
     // Create room
     roomService
         .createRoom({
@@ -17,22 +21,30 @@ const create = async (req, res) => {
             memberIds: ['6573e5e61dfa33a7a41d503b', '6574b473239ae37696fb8245', '6574bd9b39d5aa97deff4251'],
         })
         .then(async (response) => {
-            await addRoom(response.payload.room.room_id, response.payload.room);
+            if (response.httpCode === 200){
+                await addRoom(response.payload.room.room_id, response.payload.room);
+                return res.status(response.httpCode).json({
+                    code: response.httpCode,
+                    message: response.message,
+                    name: response.name,
+                    payload: response.payload,
+                });
+            }
             return res.status(response.httpCode).json({
                 code: response.httpCode,
+                name: response.name,
                 message: response.message,
-                payload: response.payload,
             });
         })
         .catch((error) => {
-            const { httpCode, payload, message } = error;
+            // Lỗi server
             process.env.NODE_ENV != 'development'
-                ? logEvents(`${error.name}: ${error.message}`, `errors`)
-                : console.log(`${error.name}: ${error.message}`);
-            return res.status(httpCode).json({
-                code: httpCode,
-                payload,
-                message,
+            ? logEvents(`${error.name}: ${error.message}\n${error.payload.name}: ${error.payload.message}`, `errors`)
+            : console.log(error);
+            return res.status(error.httpCode).json({
+                httpCode: error.httpCode,
+                name: error.name,
+                message: error.message,
             });
         });
 };
@@ -51,30 +63,48 @@ const addMember = async (req, res) => {
         .then((response) => {
             return res.status(response.httpCode).json({
                 code: response.httpCode,
+                name: error.name,
                 message: response.message,
                 payload: response.payload,
             });
         })
         .catch((error) => {
-            console.log(error);
-            const { httpCode, payload, message } = error;
-            return res.status(httpCode).json({
-                code: httpCode,
-                payload,
-                message,
+            // Lỗi server
+            process.env.NODE_ENV != 'development'
+            ? logEvents(`${error.name}: ${error.message}\n${error.payload.name}: ${error.payload.message}`, `errors`)
+            : console.log(error);
+            return res.status(error.httpCode).json({
+                httpCode: error.httpCode,
+                name: error.name,
+                message: error.message,
             });
         });
 };
 
+const getMessageRooms = async (req, res)=>{
+    // get id
+    const a_token = req.headers.authorization?.split(' ')[1];
+    const _id = getPayload(a_token)._id;
+
+    roomService.getUserJoinedRooms(_id)
+    .then((response)=>{
+        res.status(response.httpCode).json(response);
+    })
+    .catch((error)=>{
+        console.log(error);
+        res.status(error.httpCode).json(error)
+    })
+}
+
 const joinMessageRooms = async (socket, userId) => {
     return roomService
-        .getUserRooms(userId)
+        .getUserJoinedRooms(userId)
         .then(({ payload }) => {
-            if (!payload['messagesRooms']) return false;
+            if (!payload) return false;
             return {
-                rooms: payload['messagesRooms'],
+                rooms: payload,
                 joinPromises: Promise.all(
-                    Object.keys(payload['messagesRooms']).map((roomId) => joinRoomById(roomId, socket)),
+                    payload.map((room) => joinRoomById(room.room_id, socket)),
                 ),
             };
         })
@@ -96,7 +126,7 @@ const RoomEventBySocketIO = (socket) => {
                 memberIds: members,
             })
             .then(async (response) => {
-                if (response.isCreateSuccess) {
+                if (response.httpCode === 200) {
                     // add room to redis
                     await addRoom(response.payload.room.room_id, response.payload.room);
                     // sent message to all user
@@ -157,6 +187,17 @@ const RoomEventBySocketIO = (socket) => {
                 socket.emit('add-to-room__Response', error);
             });
     });
+    // Event request to get rooms
+    socket.on('get-message-rooms__Request', async ()=>{
+        console.log(_id);
+        roomService.getUserJoinedRooms(_id)
+        .then((response)=>{
+            _IO.of(ENDPOINTS.message).to('657fe7faff7d32af9a1cd75d').emit('get-message-rooms__Response', response);
+        })
+        .catch((err)=>{
+            _IO.of(ENDPOINTS.message).to(_id).emit('get-message-rooms__Response', err);
+        })
+    })
 };
 
 module.exports = {
@@ -164,4 +205,5 @@ module.exports = {
     addMember,
     RoomEventBySocketIO,
     joinMessageRooms,
+    getMessageRooms
 };
