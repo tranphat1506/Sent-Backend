@@ -2,9 +2,9 @@ const { RoomModel } = require('../../models/Messages/room.model');
 const { Types } = require('mongoose');
 const { UserModel } = require('../../models/User/users.model');
 const { SERVER_STATUS } = require('../../constants/status.code');
-const joinRoomById = async (roomId, socket, autoAdd = false) => {
+const joinMessageRoomById = async (roomId, socket, autoAdd = false) => {
     return new Promise(async (resolve, reject) => {
-        getRoomInRedis(roomId, autoAdd)
+        getMessageRoomInRedis(roomId, autoAdd)
             .then((room) => {
                 // Join room
                 // console.log(`User with id::${socket.user._id} join room id::${room.room_id}`);
@@ -18,10 +18,10 @@ const joinRoomById = async (roomId, socket, autoAdd = false) => {
     });
 };
 
-const getRoomInRedis = async (roomId, autoAdd = false) => {
+const getMessageRoomInRedis = async (roomId, autoAdd = false) => {
     return new Promise(async (resolve, reject) => {
         if (!roomId) return reject({ name: 'Error', message: `Invalid room id::${roomId}.` });
-        const existRoom = await _ROOMS[roomId];
+        const existRoom = await _MESSAGE_ROOMS[roomId];
         if (!existRoom) {
             if (!autoAdd) return reject({ name: 'Error', message: `Room with id::${roomId} not exist.` });
             return fetchOneRoom(roomId)
@@ -71,13 +71,13 @@ const countUser = async () => {
 };
 
 const countRoom = async () => {
-    return Object.keys(await _ROOMS).length || 0;
+    return Object.keys(await _MESSAGE_ROOMS).length || 0;
 };
 
 const addRoom = async (roomId, roomDetail) => {
     return new Promise(async (resolve, reject) => {
         if (!roomId) return reject({ status: false, message: 'Missing room id!' });
-        _ROOMS[String(roomId)] = { ...roomDetail, room_id: String(roomId), messages: [] };
+        _MESSAGE_ROOMS[String(roomId)] = { ...roomDetail, room_id: String(roomId), messages: [] };
         return resolve({ status: true, message: 'OK', payload: roomDetail });
     });
 };
@@ -141,8 +141,8 @@ module.exports = {
     countUser,
     getUserByUserId,
     userDisconnect,
-    joinRoomById,
-    getRoomInRedis,
+    joinMessageRoomById,
+    getMessageRoomInRedis,
     fetchOneRoom,
     addRoom,
     countRoom,

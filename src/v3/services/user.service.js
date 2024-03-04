@@ -10,8 +10,8 @@ const { FriendModel, FRIEND_STATUS } = require('../models/friends.model');
 
 /**
  * Get user info by id, but cut some privacy info (password, ...)
- * @param {string} _id 
- * @returns 
+ * @param {string} _id
+ * @returns
  */
 const getUserInfoById = async (_id) => {
     return new Promise((resolve, reject) => {
@@ -51,84 +51,111 @@ const getUserInfoById = async (_id) => {
 
 /**
  * This function return promise response message add friend of two user
- * @param {string} request_send_by 
- * @param {string} friend_id 
- * @returns 
+ * @param {string} request_send_by
+ * @param {string} friend_id
+ * @returns
  */
 const addFriendByUserId = async (request_send_by, friend_id) => {
     return new Promise((resolve, reject) => {
         // Checking param valid
         if (!request_send_by || !friend_id)
-            return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__MISSING_PARAMS || FRIEND_ACTION_STATUS.ADD_FRIEND__INVALID_PARAMS);
-        if (request_send_by === friend_id)
-            return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__SELF_ADD_FRIEND);
+            return resolve(
+                FRIEND_ACTION_STATUS.ADD_FRIEND__MISSING_PARAMS || FRIEND_ACTION_STATUS.ADD_FRIEND__INVALID_PARAMS,
+            );
+        if (request_send_by === friend_id) return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__SELF_ADD_FRIEND);
         // Parse string id to object id array
-        const ids = [new Types.ObjectId(request_send_by), new Types.ObjectId(friend_id)]
+        const ids = [new Types.ObjectId(request_send_by), new Types.ObjectId(friend_id)];
         // Check if valid users
         return UserSettingModel.find({
-            user_id: {$in : ids}
+            user_id: { $in: ids },
         })
-        .then(async (existUserSettings)=>{
-            // Check if valid users
-            if (existUserSettings.length < 2){
-                return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__INVALID_PARAMS);
-            }
-            // Check if exist friend request
-            const existFriendRequests = await FriendModel.find({
-                user_id: {$in: ids},
-                friend_id: {$in: ids}
-            })
-            const requestCount = existFriendRequests.length;
-            // If exist 2 request, then two user already friend
-            if (requestCount === 2){
-                return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ALREADY_FRIEND);
-            }
-            // If exist 1 request
-            else if (requestCount === 1){
-                const fR = existFriendRequests[0];
-                // if you already sent request, then return response;
-                if (fR.user_id === ids[0])
-                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ALREADY_REQUEST);
-                // if their already sent request, then accept the request and create a new request for you.
-                const timeNow = Date.now()
-                // Accept the request from their
-                fR.status = 'Accepted';
-                fR.response_time = timeNow;
-                // Create a new request for you
-                const newFR = new FriendModel({
-                    user_id: ids[0],
-                    friend_id: ids[1],
-                    status: 'Accepted',
-                    response_time: timeNow,
-                    request_time: timeNow
-                })
-                await newFR.save(); // Save
-                return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ACCEPT_REQUEST_SUCCESS)
-            }
-            // Create a new request for you
-            else{
-                const friendSetting = existUserSettings[0].user_id === friend_id ? existUserSettings[0] : existUserSettings[1];
-                // Check if other user allow to add friend
-                if (!isAllowAddFriend(friendSetting)){
-                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__NOT_ALLOW);
+            .then(async (existUserSettings) => {
+                // Check if valid users
+                if (existUserSettings.length < 2) {
+                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__INVALID_PARAMS);
                 }
-                await new FriendModel({
-                    user_id: ids[0],
-                    friend_id: ids[1],
-                    status: 'Pending',
-                    request_time: Date.now()
-                }).save() // Create and save together
-                return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__CREATE_REQUEST_SUCCESS);
-            }
+                // Check if exist friend request
+                const existFriendRequests = await FriendModel.find({
+                    user_id: { $in: ids },
+                    friend_id: { $in: ids },
+                });
+                const requestCount = existFriendRequests.length;
+                // If exist 2 request, then two user already friend
+                if (requestCount === 2) {
+                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ALREADY_FRIEND);
+                }
+                // If exist 1 request
+                else if (requestCount === 1) {
+                    const fR = existFriendRequests[0];
+                    // if you already sent request, then return response;
+                    if (fR.user_id === ids[0]) return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ALREADY_REQUEST);
+                    // if their already sent request, then accept the request and create a new request for you.
+                    const timeNow = Date.now();
+                    // Accept the request from their
+                    fR.status = 'Accepted';
+                    fR.response_time = timeNow;
+                    // Create a new request for you
+                    const newFR = new FriendModel({
+                        user_id: ids[0],
+                        friend_id: ids[1],
+                        status: 'Accepted',
+                        response_time: timeNow,
+                        request_time: timeNow,
+                    });
+                    await newFR.save(); // Save
+                    await fR.save();
+                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__ACCEPT_REQUEST_SUCCESS);
+                }
+                // Create a new request for you
+                else {
+                    const friendSetting =
+                        existUserSettings[0].user_id === friend_id ? existUserSettings[0] : existUserSettings[1];
+                    // Check if other user allow to add friend
+                    if (!isAllowAddFriend(friendSetting)) {
+                        return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__NOT_ALLOW);
+                    }
+                    await new FriendModel({
+                        user_id: ids[0],
+                        friend_id: ids[1],
+                        status: 'Pending',
+                        request_time: Date.now(),
+                    }).save(); // Create and save together
+                    return resolve(FRIEND_ACTION_STATUS.ADD_FRIEND__CREATE_REQUEST_SUCCESS);
+                }
+            })
+            .catch((error) => {
+                return reject({ ...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error });
+            });
+    });
+};
+
+const getFriendList = async (userId) => {
+    return new Promise((resolve, reject) => {
+        if (!userId) return resolve(FRIEND_ACTION_STATUS.GET_FRIEND__INVALID_PARAMS);
+        // Query and sort friend list desc by response time
+        return FriendModel.find({
+            user_id: new Types.ObjectId(userId),
+            status: 'Accepted', // only get accepted request
         })
-        .catch((error)=>{
-            return reject({...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error});
-        })
-        
+            .populate({
+                path: 'friend_id',
+                select: '-account_details.password',
+            })
+            .sort('-response_time')
+            .then((friends) => {
+                return resolve({
+                    ...FRIEND_ACTION_STATUS.GET_FRIEND__GET_FRIEND_LIST_SUCCESS,
+                    payload: friends,
+                });
+            })
+            .catch((error) => {
+                return reject({ ...SERVER_STATUS.SERVER__DEFAULT_ERROR, payload: error });
+            });
     });
 };
 
 module.exports = {
     getUserInfoById,
     addFriendByUserId,
+    getFriendList,
 };

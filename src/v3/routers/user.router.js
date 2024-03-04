@@ -6,4 +6,7 @@ const userController = require('../controllers/user.controller');
 router.post('/me', userController.getInfo);
 
 router.post('/friend/add', userController.addFriend);
+
+router.post('/friend/get-all', userController.getFriendList);
+
 module.exports = router;

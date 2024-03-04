@@ -59,7 +59,7 @@ const ROOM_ACTION_STATUS = {
         name: 'RAS-00011',
         message: 'This room is a 1-1 room! You cannot add more than one people.',
     },
-}
+};
 const FRIEND_ACTION_STATUS = {
     ADD_FRIEND__INVALID_PARAMS: {
         httpCode: 400,
@@ -101,8 +101,17 @@ const FRIEND_ACTION_STATUS = {
         name: 'FAS-00007',
         message: 'Successfully sent a friend request to other.',
     },
-    
-}
+    GET_FRIEND__GET_FRIEND_LIST_SUCCESS: {
+        httpCode: 200,
+        name: 'FAS-00008',
+        message: 'Successfully get friend list.',
+    },
+    GET_FRIEND__INVALID_PARAMS: {
+        httpCode: 400,
+        name: 'FAS-00009',
+        message: 'Get friend list with invalid params or missing params.',
+    },
+};
 /**
  * @returns Return user status
  */
@@ -158,5 +167,5 @@ module.exports = {
     USER_STATUS,
     SERVER_STATUS,
     FRIEND_ACTION_STATUS,
-    ROOM_ACTION_STATUS
+    ROOM_ACTION_STATUS,
 };

@@ -60,6 +60,25 @@ const addFriend = async (req, res) => {
     }
 };
 
+const getFriendList = async (req, res) => {
+    try {
+        const a_token = req.headers.authorization?.split(' ')[1];
+        const _id = getPayload(a_token)._id;
+        const response = await userService.getFriendList(_id);
+        return res.status(response.httpCode).json(response);
+    } catch (error) {
+        // Lỗi server
+        process.env.NODE_ENV != 'development'
+            ? logEvents(`${error.name}: ${error.message}\n${error.payload.name}: ${error.payload.message}`, `errors`)
+            : console.log(error);
+        return res.status(error.httpCode).json({
+            httpCode: error.httpCode,
+            name: error.name,
+            message: error.message,
+        });
+    }
+};
+
 const FriendEventSocketIO = (socket) => {
     // Add friend
     socket.on('add-friend__Request', ({ friend_id }) => {
@@ -85,4 +104,5 @@ module.exports = {
     getInfo,
     FriendEventSocketIO,
     addFriend,
+    getFriendList,
 };

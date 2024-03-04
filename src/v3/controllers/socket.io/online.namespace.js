@@ -9,6 +9,7 @@ const {
     joinRoomById,
     getUserByUserId,
 } = require('../../services/socket.io/common.service');
+const { getFriendList } = require('../../services/user.service');
 const { OnlineEventSocketIO } = require('../online.controller');
 
 const onlineNamespace = (namespace) => {
@@ -41,15 +42,16 @@ const onlineNamespace = (namespace) => {
     return router;
 };
 
-const joinOnlineStatusRoom = async (socket, roomId) => {
+const joinNotificationRoom = async (socket, roomId) => {
     try {
-        const room = await getOnlineStatusRoom(roomId);
-        if (!room.members) throw new Error(`The user with id::${roomId} not in their friendlist ???`);
-        const promises = [];
-        room.members.forEach((_, memberId) => {
-            promises.push(joinRoomById(memberId, socket, true));
-        });
-        return Promise.all(promises);
+        const resGetFriendList = await getFriendList(socket.user._id);
+        if (resGetFriendList.httpCode === 200) {
+            const promises = [];
+            resGetFriendList.payload.map((friendInfo) => {
+                return joinRoomById();
+            });
+            return Promise.all(promises);
+        }
     } catch (error) {
         return error;
     }
@@ -71,6 +73,34 @@ const connectEvent = async (socket) => {
         friendStatusList.push(getUserByUserId(String(friend.user_id)));
     });
     socket.emit('my-list-friend__Response', await Promise.all(friendStatusList));
+};
+
+const connectEventV2 = async (socket) => {
+    // Version 2 is not need to send online state to other users
+    // but send to global.
+    /* 
+        ** Logic.
+            User connect to online namespace
+        ->  Server add user to redis and update online state
+        ->  Server send online state to every client
+        ->  Client check online state was friend
+        ->  Client UI working ...
+    */
+    // Create online state and add to online caches
+    // const state = new OnlineState()
+    //     .push({
+    //         autoCreate: true,
+    //         required: {
+    //             userId: socket.user._id,
+    //             socketId: socket.id,
+    //             IPAddress: socket.handshake.address,
+    //             language: socket.user._id,
+    //             latitude: socket.user.geolocation?.latitude,
+    //             longitude: socket.user.geolocation?.longitude,
+    //             userAgent: socket.user.userAgent,
+    //         },
+    //     })
+    //     .toObject();
 };
 
 const disconnectEvent = async (socket) => {

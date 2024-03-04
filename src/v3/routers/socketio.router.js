@@ -1,10 +1,8 @@
 const express = require('express');
 const router = express.Router();
-const { socketCorsOptions } = require('../configs/cors.config');
 const { ENDPOINTS } = require('./socketio.endpoints');
 const { NAMESPACE_CONTROLLERS } = require('./socketio.controllers');
-const io = require('socket.io')(_SERVER, { cors: socketCorsOptions });
-global._IO = io;
+
 
 Object.keys(ENDPOINTS).map((e) => {
     const endpoint = ENDPOINTS[e];
@@ -12,7 +10,7 @@ Object.keys(ENDPOINTS).map((e) => {
 
     if (!endpoint || !controller) return false;
     try {
-        router.use(endpoint, controller(io.of(endpoint)));
+        router.use(endpoint, controller(_IO.of(endpoint)));
         return true;
     } catch (error) {
         console.log(error);
